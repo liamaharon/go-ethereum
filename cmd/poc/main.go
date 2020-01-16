@@ -81,7 +81,7 @@ func tryToCreateStateDb(ethDb ethdb.Database) *state.StateDB {
 
 func processBlock(db ethdb.Database, processor *core.StateProcessor, state *state.StateDB) (types.Receipts, []*types.Log, uint64) {
 	block := rawdb.ReadBlock(db, blockHash, blockNumber)
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(1000), params.TxGas, big.NewInt(1), nil)
+	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(0), uint64(100000), big.NewInt(0), []byte("0xa9059cbb0000000000000000000000008b24eb4e6aae906058242d83e51fb077370c472000000000000000000000000000000000000000000000000000000000000003e8"))
 	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
 
 	txs := make([]*types.Transaction, 1)
