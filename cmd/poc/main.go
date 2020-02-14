@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/hex"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -9,34 +10,45 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"log"
-	"math/big"
 )
 
 var (
-	stateRoothash = common.HexToHash("0x8447453d176455bfb1f9786034dd72079d90012f82e1751e3360c20de7465de0")
-	blockHash     = common.HexToHash("0xfffbc04b0c5999b33313f2eea68e996da1d631bc15db9c0b34176eef54ddc2f9")
-	blockNumber   = uint64(2006668)
+	stateRoothash = common.HexToHash("0xfec00c4e91c882b6e4eb3f31c3caa1802465e9e0e6cb8b8140f58aea14b0c92d")
+	blockHash     = common.HexToHash("0x4a4a3daae5365a057cf4b6e06cc9baf44926aa0b783849e61a9058ee22d3d6d5")
+	blockNumber   = uint64(9467878)
 
-	testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-	testAddr   = crypto.PubkeyToAddress(testKey.PublicKey)
+	//testKey, _ = crypto.HexToECDSA(<PUT YOUR HEX PK HERE>)
+
+	DAIContractAddress = common.HexToAddress("0x6b175474e89094c44da98b954eedeac495271d0f")
+	selfAddress        = common.HexToAddress("0xa520ca9a99e3da0faa656ff5c0ea0756a69be58c")
+	// emulating transfer one base unit of DAI
+	rawTXString = "f8a58001830186a0946b175474e89094c44da98b954eedeac495271d0f80b844a9059cbb0000000000000000000000006f7799c642ba4cc4a30cdcb538bb8a26661e358700000000000000000000000000000000000000000000000000000000000000011ca0c7e768441b300b23185f068c72a55db0abde2d552d9237fbd1dc4ba72a892754a072abc013256c98d4b518c0b56ff14ba9fe4a2e7bf9eb76de5ea2dc18754424a0"
 )
 
 func main() {
-	chainConfig := fetchChainConfig()
+	var tx *types.Transaction
+	rawtx, err := hex.DecodeString(rawTXString)
+	if err != nil {
+		panic(err)
+	}
+	rlp.DecodeBytes(rawtx, &tx)
+	message, err := tx.AsMessage(types.EIP155Signer{})
+	if err != nil {
+		panic(err)
+	}
+
+	chainConfig := fetchMainnetChainConfig()
 	db := createDb()
 	bc := createBlockchain(db, chainConfig)
-	//processor := createStateProcessor(chainConfig, bc)
 
 	stateDb := tryToCreateStateDb(db)
 
-	message := createTransferTokensMessage()
 	block := getLatestBlock(db)
-
 	vmctx := core.NewEVMContext(message, block.Header(), bc, nil)
 
 	result, err := traceTx(message, vmctx, stateDb)
@@ -44,19 +56,22 @@ func main() {
 		panic(err)
 	}
 
-	println(result)
+	for _, log := range result.StructLogs {
+		if log.Op == "LOG3" {
+			println(log.Stack)
+		}
+	}
 }
 
-func fetchChainConfig() *params.ChainConfig {
-	config := params.MainnetChainConfig
-
-	return config
+func fetchMainnetChainConfig() *params.ChainConfig {
+	return params.MainnetChainConfig
 }
 
 func createDb() ethdb.Database {
-	//file := "/Users/kirill/geth/data/geth/chaindata"
+	file := "/Users/kirill/geth/geth/chaindata"
 	var (
-		root      = "/Users/kirill/geth_archive/data/geth/chaindata"
+		//root      = "/Users/kirill/geth_archive/data/geth/chaindata"
+		root      = file
 		namespace = "eth/db/chaindata"
 		cache     = 2048
 		handles   = 5120
@@ -77,9 +92,9 @@ func createBlockchain(db ethdb.Database, chainConfig *params.ChainConfig) *core.
 	return bc
 }
 
-func createStateProcessor(config *params.ChainConfig, bc *core.BlockChain) *core.StateProcessor {
-	return core.NewStateProcessor(config, bc, ethash.NewFaker())
-}
+//func createStateProcessor(config *params.ChainConfig, bc *core.BlockChain) *core.StateProcessor {
+//	return core.NewStateProcessor(config, bc, ethash.NewFaker())
+//}
 
 func tryToCreateStateDb(ethDb ethdb.Database) *state.StateDB {
 	db := state.NewDatabase(ethDb)
@@ -92,21 +107,23 @@ func tryToCreateStateDb(ethDb ethdb.Database) *state.StateDB {
 	return state
 }
 
-func createTransferTokensMessage() types.Message {
-	tx := types.NewTransaction(uint64(0), testAddr, big.NewInt(0), uint64(100000), big.NewInt(0), []byte("0xa9059cbb0000000000000000000000008b24eb4e6aae906058242d83e51fb077370c472000000000000000000000000000000000000000000000000000000000000003e8"))
-	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
-
-	if err != nil {
-		panic(err)
-	}
-
-	message, err := signedTx.AsMessage(types.HomesteadSigner{})
-	if err != nil {
-		panic(err)
-	}
-
-	return message
-}
+//func createTransferTokensMessage(config *params.ChainConfig) types.Message {
+//	data := common.Hex2Bytes("a9059cbb0000000000000000000000006f7799c642ba4cc4a30cdcb538bb8a26661e35870000000000000000000000000000000000000000000000000000000000000001")
+//
+//	tx := types.NewTransaction(uint64(0), DAIContractAddress, big.NewInt(0), uint64(100000), nil, data)
+//	signedTx, err := types.SignTx(tx, types.HomesteadSigner{}, testKey)
+//
+//	if err != nil {
+//		panic(err)
+//	}
+//
+//	message, err := signedTx.AsMessage(types.HomesteadSigner{})
+//	if err != nil {
+//		panic(err)
+//	}
+//
+//	return message
+//}
 
 // This func uses hardcoded block number at the moment
 func getLatestBlock(db ethdb.Database) *types.Block {
@@ -154,7 +171,7 @@ func traceTx(message core.Message, vmctx vm.Context, statedb *state.StateDB) (*e
 		Limit:          0,
 	})
 	// Run the transaction with tracing enabled.
-	vmenv := vm.NewEVM(vmctx, statedb, fetchChainConfig(), vm.Config{Debug: true, Tracer: tracer})
+	vmenv := vm.NewEVM(vmctx, statedb, fetchMainnetChainConfig(), vm.Config{Debug: true, Tracer: tracer})
 
 	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()))
 	if err != nil {
